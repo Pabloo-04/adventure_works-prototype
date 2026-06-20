@@ -2,24 +2,49 @@ import { useState } from 'react'
 import { productos } from '../../data/productos'
 import type { Producto } from '../../types'
 import { ProductCard } from './ProductCard'
+import { CarritoPanel, type ItemCarrito } from './CarritoPanel'
+import { CheckoutModal, type DatosCliente } from './CheckoutModal'
+import { OrdenConfirmada } from './OrdenConfirmada'
 import styles from './VentasPage.module.css'
 
-interface ItemCarrito {
-  producto: Producto
-  cantidad: number
+type Paso = 'catalogo' | 'checkout' | 'confirmado'
+
+interface OrdenFinalizada {
+  items: ItemCarrito[]
+  datos: DatosCliente
+  numeroControl: string
+  codigoGeneracion: string
+  fechaEmision: string
 }
 
 const categorias = ['Todas', ...Array.from(new Set(productos.map(p => p.categoria)))]
+
+let contadorOrden = 50
+
+function generarNumeroControl(tipoDTE: string) {
+  contadorOrden++
+  return `DTE-${tipoDTE}-M001P001-${String(contadorOrden).padStart(12, '0')}`
+}
+
+function generarUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16).toUpperCase()
+  })
+}
 
 export function VentasPage() {
   const [carrito, setCarrito] = useState<ItemCarrito[]>([])
   const [categoriaActiva, setCategoriaActiva] = useState('Todas')
   const [carritoAbierto, setCarritoAbierto] = useState(false)
-  const [confirmado, setConfirmado] = useState(false)
+  const [paso, setPaso] = useState<Paso>('catalogo')
+  const [orden, setOrden] = useState<OrdenFinalizada | null>(null)
 
   const productosFiltrados = categoriaActiva === 'Todas'
     ? productos
     : productos.filter(p => p.categoria === categoriaActiva)
+
+  const totalItems = carrito.reduce((acc, i) => acc + i.cantidad, 0)
 
   function agregarAlCarrito(producto: Producto) {
     setCarrito(prev => {
@@ -36,34 +61,84 @@ export function VentasPage() {
     setCarritoAbierto(true)
   }
 
-  function quitarDelCarrito(productoId: string) {
+  function incrementar(productoId: string) {
+    setCarrito(prev => prev.map(i =>
+      i.producto.productoId === productoId
+        ? { ...i, cantidad: i.cantidad + 1 }
+        : i
+    ))
+  }
+
+  function decrementar(productoId: string) {
+    setCarrito(prev => prev
+      .map(i =>
+        i.producto.productoId === productoId
+          ? { ...i, cantidad: i.cantidad - 1 }
+          : i
+      )
+      .filter(i => i.cantidad > 0)
+    )
+  }
+
+  function eliminar(productoId: string) {
     setCarrito(prev => prev.filter(i => i.producto.productoId !== productoId))
   }
 
-  const subtotal = carrito.reduce((acc, i) => acc + i.producto.precio * i.cantidad, 0)
-  const iva = subtotal * 0.13
-  const total = subtotal + iva
-
-  const totalItems = carrito.reduce((acc, i) => acc + i.cantidad, 0)
-
-  function confirmarVenta() {
-    setConfirmado(true)
+  function vaciar() {
     setCarrito([])
-    setTimeout(() => {
-      setConfirmado(false)
-      setCarritoAbierto(false)
-    }, 3000)
+  }
+
+  function confirmarCheckout(datos: DatosCliente) {
+    const ahora = new Date().toISOString()
+    setOrden({
+      items: [...carrito],
+      datos,
+      numeroControl: generarNumeroControl(datos.tipoDTE),
+      codigoGeneracion: generarUUID(),
+      fechaEmision: ahora,
+    })
+    setCarrito([])
+    setCarritoAbierto(false)
+    setPaso('confirmado')
+  }
+
+  function nuevaCompra() {
+    setOrden(null)
+    setPaso('catalogo')
   }
 
   return (
     <div className={styles.page}>
+      {/* Checkout modal */}
+      {paso === 'checkout' && (
+        <CheckoutModal
+          items={carrito}
+          onConfirmar={confirmarCheckout}
+          onCancelar={() => setPaso('catalogo')}
+        />
+      )}
+
+      {/* Confirmación / Recibo */}
+      {paso === 'confirmado' && orden && (
+        <OrdenConfirmada
+          items={orden.items}
+          datos={orden.datos}
+          numeroControl={orden.numeroControl}
+          codigoGeneracion={orden.codigoGeneracion}
+          fechaEmision={orden.fechaEmision}
+          onNuevaCompra={nuevaCompra}
+        />
+      )}
+
       {/* Header */}
       <div className={styles.pageHeader}>
         <div className={styles.container}>
-          <h1 className={styles.pageTitle}>Catálogo de Productos</h1>
-          <p className={styles.pageSubtitle}>
-            Selección Adventure Works · Precios incluyen IVA 13%
-          </p>
+          <div>
+            <h1 className={styles.pageTitle}>Catálogo de Productos</h1>
+            <p className={styles.pageSubtitle}>
+              Selección Adventure Works · Precios sin IVA · Se aplica 13% al total
+            </p>
+          </div>
 
           <button
             className={styles.carritoBtn}
@@ -105,65 +180,15 @@ export function VentasPage() {
 
           {/* Carrito lateral */}
           {carritoAbierto && (
-            <aside className={styles.carrito}>
-              <div className={styles.carritoHeader}>
-                <h2>Carrito</h2>
-                <button onClick={() => setCarritoAbierto(false)} className={styles.cerrarBtn}>✕</button>
-              </div>
-
-              {confirmado && (
-                <div className={styles.confirmado}>
-                  ✅ Venta confirmada. Se generará el DTE correspondiente.
-                </div>
-              )}
-
-              {carrito.length === 0 && !confirmado && (
-                <p className={styles.carritoVacio}>No hay productos en el carrito.</p>
-              )}
-
-              {carrito.map(item => (
-                <div key={item.producto.productoId} className={styles.carritoItem}>
-                  <div className={styles.carritoItemInfo}>
-                    <p className={styles.carritoItemNombre}>{item.producto.nombre}</p>
-                    <p className={styles.carritoItemPrecio}>
-                      {item.cantidad} × ${item.producto.precio.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className={styles.carritoItemRight}>
-                    <span className={styles.carritoItemTotal}>
-                      ${(item.producto.precio * item.cantidad).toFixed(2)}
-                    </span>
-                    <button
-                      className={styles.quitarBtn}
-                      onClick={() => quitarDelCarrito(item.producto.productoId)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {carrito.length > 0 && (
-                <div className={styles.carritoResumen}>
-                  <div className={styles.resumenFila}>
-                    <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className={styles.resumenFila}>
-                    <span>IVA (13%)</span>
-                    <span>${iva.toFixed(2)}</span>
-                  </div>
-                  <div className={`${styles.resumenFila} ${styles.resumenTotal}`}>
-                    <span>Total</span>
-                    <span>${total.toFixed(2)}</span>
-                  </div>
-
-                  <button className={styles.confirmarBtn} onClick={confirmarVenta}>
-                    Confirmar venta
-                  </button>
-                </div>
-              )}
-            </aside>
+            <CarritoPanel
+              items={carrito}
+              onCerrar={() => setCarritoAbierto(false)}
+              onIncrementar={incrementar}
+              onDecrementar={decrementar}
+              onEliminar={eliminar}
+              onVaciar={vaciar}
+              onCheckout={() => setPaso('checkout')}
+            />
           )}
         </div>
       </div>

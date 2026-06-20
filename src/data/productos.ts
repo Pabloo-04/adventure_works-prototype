@@ -52,7 +52,7 @@ export const productos: Producto[] = [
     categoria: 'Hydration Packs',
     precio: 54.99,
     stock: 29,
-    imagen: 'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=400&q=80',
+    imagen: 'https://m.media-amazon.com/images/I/81fFUwpk9wL._AC_UF1000,1000_QL80_.jpg',
     descripcion: 'Mochila de hidratación 2L para trail y MTB. Sistema de válvula bite-proof y correas ergonómicas.',
     activo: true,
   },
