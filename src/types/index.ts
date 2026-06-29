@@ -5,9 +5,15 @@ export interface Producto {
   categoria: string
   precio: number
   stock: number
+  umbralMinimo: number
   imagen: string
   descripcion: string
   activo: boolean
+}
+
+export interface ItemCarrito {
+  producto: Producto
+  cantidad: number
 }
 
 export interface DetalleVenta {
@@ -29,7 +35,7 @@ export interface Venta {
   detalles: DetalleVenta[]
 }
 
-export type TipoDTE = '01' | '03'
+export type TipoDTE = '01' | '03' | '05' | '06'
 export type EstadoDTE = 'PROCESADO' | 'RECHAZADO' | 'PENDIENTE' | 'CONTINGENCIA'
 
 export interface DTE {
@@ -48,4 +54,12 @@ export interface DTE {
   subtotal: number
   iva: number
   total: number
+}
+
+export interface DatosCliente {
+  nombre: string
+  documento: string
+  tipoDTE: TipoDTE
+  nrc?: string
+  actividadEconomica?: string
 }
